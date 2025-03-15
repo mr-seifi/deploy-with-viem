@@ -22,7 +22,7 @@ const rpc = http(`https://sepolia.infura.io/v3/${infuraApiKey}`);
 async function main(){
 
     console.log("Welcome to Ballot!\n");
-    console.log("Enter 'r' for GiveRightVote\nEnter 'c' for CastVote\nEnter 'd' for DelegateVote\nEnter 'w' for GetWinningProposal");
+    console.log("Enter 'r' for GiveRightVote [<contract_address>, <voter_address>]\nEnter 'c' for CastVote [<contract_address>, <proposal_number>]\nEnter 'd' for DelegateVote [<contract_address>, <delegete_address>]\nEnter 'w' for GetWinningProposal [<contract_address>]");
 
     const publicClient = createPublicClient({
         chain: sepolia,
