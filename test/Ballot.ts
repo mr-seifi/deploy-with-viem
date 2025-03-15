@@ -1,132 +1,56 @@
-import { expect } from "chai";
-import { toHex, hexToString } from "viem";
-import { viem } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { createPublicClient, createWalletClient, http, formatEther, toHex, hexToString } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { holesky, sepolia } from "viem/chains";
+import { abi, bytecode } from "../artifacts/contracts/Ballot.sol/Ballot.json";
+import process from 'process';
+import * as dotenv from "dotenv";
+import { delegate } from "./DelegateVote";
+import { giveVotingRights } from "./GiveVotingRights";
+import { castVote } from "./CastVote";
+import { getWinningProposal } from "./GetWinningProposal";
 
-const PROPOSALS = ["Proposal 1", "Proposal 2", "Proposal 3"];
+dotenv.config();
 
-async function deployContract() {
-    const publicClient = await viem.getPublicClient();
-    const [owner, otherAccount] = await viem.getWalletClients();
-    const ballotContract = await viem.deployContract("Ballot", [
-        PROPOSALS.map((prop) => toHex(prop, { size: 32 }))
-    ]);
-    return { publicClient, owner, otherAccount, ballotContract };
+const alchemyApiKey: string = process.env.ALCHEMY_API_KEY || "";
+const infuraApiKey: string = process.env.INFURA_API_KEY || "";
+const infuraSecretKey: string = process.env.INFURA_SECRET_KEY || "";
+const etherScanApiKey: string = process.env.ETHERSCAN_API_KEY || "";
+const deployerPrivateKey = process.env.PRIVATE_KEY || "";
+const rpc = http(`https://sepolia.infura.io/v3/${infuraApiKey}`);
+
+// npx ts-node ./scripts/DelegateVote.ts <contract_address> <to_address>
+async function main(){
+
+    console.log("Welcome to Ballot!\n");
+    console.log("Enter 'r' for GiveRightVote\nEnter 'c' for CastVote\nEnter 'd' for DelegateVote\nEnter 'w' for GetWinningProposal");
+
+    const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: rpc,
+    });
+    const account = privateKeyToAccount(`0x${deployerPrivateKey}`);
+    const walletClient = createWalletClient({
+        account,
+        chain: sepolia,
+        transport: rpc,
+    });
+
+    process.stdin.addListener("data", async function (d: Buffer) {
+        if (d.toString().trim().toLowerCase() == "r") {
+            await giveVotingRights(publicClient, walletClient);
+        } else if (d.toString().trim().toLowerCase() == "d") {
+            await delegate(publicClient, walletClient);
+        } else if (d.toString().trim().toLowerCase() == "c") {
+            await castVote(publicClient, walletClient);
+        } else if (d.toString().trim().toLowerCase() == "w") {
+            const { winningProposalNumber, proposal } = await getWinningProposal(publicClient);
+            console.log("Winning proposal is number: ", winningProposalNumber, ", which is: ", hexToString(proposal[0], { size: 32 }));
+        }
+        process.exit();
+    });
 }
 
-describe("Ballot", async () => {
-  describe("when the contract is deployed", async () => {
-    it("has the provided proposals", async () => {
-        const { ballotContract } = await loadFixture(deployContract);
-        for(let i = 0; i < PROPOSALS.length; ++i) {
-            const proposal = await ballotContract.read.proposals([BigInt(i)]);
-            expect(hexToString(proposal[0], { size: 32 })).to.equal(PROPOSALS[i]);
-        }
-    });
-
-    it("has zero votes for all proposals", async () => {
-      const { ballotContract } = await loadFixture(deployContract);
-      for(let i = 0; i < PROPOSALS.length; ++i) {
-        const proposal = await ballotContract.read.proposals([BigInt(i)]);
-        expect(proposal[1]).to.equal(0n);
-      }
-    });
-    it("sets the deployer address as chairperson", async () => {
-       const { ballotContract, owner } = await loadFixture(deployContract);
-       const chairperson = await ballotContract.read.chairperson();
-
-       expect(chairperson.toLowerCase()).to.eq(owner.account.address.toLowerCase());
-    });
-    it("sets the voting weight for the chairperson as 1", async () => {
-      const { ballotContract, owner } = await loadFixture(deployContract);
-
-      const ownerVote = await ballotContract.read.voters([owner.account.address]);
-      expect(ownerVote[0]).to.eq(1n);
-    });
-  });
-
-  describe("when the chairperson interacts with the giveRightToVote function in the contract", async () => {
-    it("gives right to vote for another address", async () => {
-      // TODO
-      throw Error("Not implemented");
-    });
-    it("can not give right to vote for someone that has voted", async () => {
-      // TODO
-      throw Error("Not implemented");
-    });
-    it("can not give right to vote for someone that has already voting rights", async () => {
-      // TODO
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when the voter interacts with the vote function in the contract", async () => {
-    // TODO
-    it("should register the vote", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when the voter interacts with the delegate function in the contract", async () => {
-    // TODO
-    it("should transfer voting power", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when an account other than the chairperson interacts with the giveRightToVote function in the contract", async () => {
-    // TODO
-    it("should revert", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when an account without right to vote interacts with the vote function in the contract", async () => {
-    // TODO
-    it("should revert", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when an account without right to vote interacts with the delegate function in the contract", async () => {
-    // TODO
-    it("should revert", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when someone interacts with the winningProposal function before any votes are cast", async () => {
-    // TODO
-    it("should return 0", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when someone interacts with the winningProposal function after one vote is cast for the first proposal", async () => {
-    // TODO
-    it("should return 0", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when someone interacts with the winnerName function before any votes are cast", async () => {
-    // TODO
-    it("should return name of proposal 0", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when someone interacts with the winnerName function after one vote is cast for the first proposal", async () => {
-    // TODO
-    it("should return name of proposal 0", async () => {
-      throw Error("Not implemented");
-    });
-  });
-
-  describe("when someone interacts with the winningProposal function and winnerName after 5 random votes are cast for the proposals", async () => {
-    // TODO
-    it("should return the name of the winner proposal", async () => {
-      throw Error("Not implemented");
-    });
-  });
+main().catch((error: Error) => {
+  console.error(error);
+  process.exitCode = 1;
 });
